@@ -2,8 +2,9 @@ module OscarHomotopyContinuation
 
 import Oscar: Oscar, gens, parent, coeff, exponent_vector, monomials, MPolyIdeal
 import HomotopyContinuation: HomotopyContinuation, Variable
+import LinearAlgebra: LinearAlgebra
 
-export poly_to_expr, numerical_solve, nid
+export poly_to_expr, nsolve, ndim, ndegree, nid
 
 """
     poly_to_expr(f)
@@ -36,13 +37,47 @@ function System(I::MPolyIdeal; args...)
 end
 
 """
-    numerical_solve(I::MPolyIdeal; args...)
+    nsolve(I::MPolyIdeal; args...)
 
 Call `HomotopyContinuation.solve` on the `HomotopyContinuation.System` derived
 from `I` forwarding all `args`.
 """
-function numerical_solve(I::MPolyIdeal; args...)
-    HomotopyContinuation.solve(System(I); args...)
+function nsolve(I::MPolyIdeal; show_progress=false, args...)
+    HomotopyContinuation.solve(System(I); show_progress, args...)
+end
+
+function witness_set(I::MPolyIdeal; show_progress=false, args...)
+    HomotopyContinuation.witness_set(System(I); show_progress, args...)
+end
+
+"""
+    ndim(I::MPolyIdeal)
+
+Compute the dimension of `I` numerically.
+"""
+function ndim(I::MPolyIdeal)
+    # This is provided by HomotopyContinuation.jl and computes the
+    # dimension based on the Jacobian rank at a random point.
+    F = System(I)
+    HomotopyContinuation.nvariables(F) - LinearAlgebra.rank(HomotopyContinuation.fixed(F))
+end
+
+"""
+    ndegree(I::MPolyIdeal; args...)
+
+Compute the degree of `I` numerically, forwarding all `args` to
+`HomotopyContinuation.witness_set` if the dimension is positive
+and to `HomotopyContinuation.solve` if the dimension is zero.
+"""
+function ndegree(I::MPolyIdeal; show_progress=false, args...)
+    if ndim(I) == 0
+        F = System(I)
+        sols = HomotopyContinuation.solve(F; show_progress, args...)
+	cert = HomotopyContinuation.certify(F, sols; show_progress)
+        HomotopyContinuation.ncertified(cert)
+    else
+        HomotopyContinuation.degree(witness_set(I; show_progress, args...))
+    end
 end
 
 """
@@ -51,17 +86,18 @@ end
 Call `HomotopyContinuation.nid` on the `HomotopyContinuation.System` derived
 from `I` forwarding all `args`.
 """
-function nid(I::MPolyIdeal; args...)
-    HomotopyContinuation.nid(System(I); args...)
+function nid(I::MPolyIdeal; show_progress=false, args...)
+    HomotopyContinuation.nid(System(I); show_progress, args...)
 end
 
-# Also add methods to HomotopyContinuation in case the user has it
-# loaded at global scope.
-HomotopyContinuation.System(I::MPolyIdeal; args...) = System(I; args...)
-HomotopyContinuation.solve(I::MPolyIdeal; args...) = numerical_solve(I; args...)
-HomotopyContinuation.nid(I::MPolyIdeal; args...) = nid(I; args...)
+# Also add methods to HomotopyContinuation in case the user has it loaded at global scope.
+#HomotopyContinuation.System(I::MPolyIdeal; args...) = System(I; args...)
+#HomotopyContinuation.solve(I::MPolyIdeal; args...)  = nsolve(I; args...)
+#HomotopyContinuation.nid(I::MPolyIdeal; args...)    = nid(I; args...)
 
-# Also provide a method in Oscar.
-Oscar.solve(I::MPolyIdeal; args...) = numerical_solve(I; args...)
+# Also add some methods to Oscar.
+#Oscar.nsolve(I::MPolyIdeal; args...)  = nsolve(I; args...)
+#Oscar.ndim(I::MPolyIdeal; args...)    = ndim(I; args...)
+#Oscar.ndegree(I::MPolyIdeal; args...) = ndegree(I; args...)
 
 end
